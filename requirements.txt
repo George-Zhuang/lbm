@@ -1,0 +1,10 @@
+wandb
+mediapy
+opencv-python
+einops
+tqdm
+scipy
+lap
+imageio
+huggingface_hub[cli]
+ray

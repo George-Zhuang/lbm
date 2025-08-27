@@ -1,0 +1,49 @@
+# data
+input_size: [384, 512]
+eval_dataset: bft
+root_dir: data/bft
+anno_file: annotations/test_v1.6.json
+data_dir: images
+subset: all
+metric_list:
+- OWTA
+public_det_path: data/public_detections/bft/glee_plus_bft_test_det
+save_res_path: output/objtrack/bft_res
+save_vis_path: output/objtrack/bft_vis
+
+# model
+N: 256
+T: 24
+stride: 4
+num_layers: 3
+embed_dim: 256
+num_heads: 4
+num_levels: 4
+num_neighbors: 9
+top_k_regions: 9
+dropout: 0.1
+memory_size: 12
+lambda_cls: 3.0
+lambda_vis: 1.0
+lambda_off: 1.0
+lambda_unc: 1.0
+lambda_ref: 1.0
+loss_after_query: false
+checkpoint_path: 'checkpoints/lbm.pt'
+
+# track
+object_points: 16
+detect_every_n_frame: 1
+detect_threshold: 0.01
+init_score_thr: 0.3
+obj_score_thr: 0.2
+match_score_thr: 0.01
+memo_tracklet_frames: 10
+memo_point_frames: 2
+distractor_score_thr: 0.5
+distractor_nms_thr: 0.3
+rm_distractor: true
+max_distance: 100.0
+fps: 30
+weight_match_with_det_scores: true
+weight_match_with_det_labels: true

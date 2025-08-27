@@ -1,0 +1,16 @@
+.vscode
+.cache
+checkpoints
+tmp
+logs
+data/*
+!data/demo.mp4
+output
+wandb
+
+**/__pycache__/
+*.pt
+*.log
+*.sh
+*.xlsx
+*.json
