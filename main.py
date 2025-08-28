@@ -21,7 +21,7 @@ from lbm.utils.eval_utils import Evaluator, compute_tapvid_metrics
 from lbm.utils.coord_utils import get_queries
 from lbm.utils.eval_utils import load_config, print_args
 
-from lbm.models.lbm import LBM
+from lbm.models import LBM
 
 
 def get_args():
