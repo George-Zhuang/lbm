@@ -15,16 +15,16 @@ The features of LBM inlcude:
 - [x] **real-time** with ~50 FPS on NVIDIA Jetson Orin NX (TensorRT FP16).
 - [x] **robust** against **detection failure** for 2d object tracking.
 
-## 📌 News
+### 📌 News
 - ```2025.06``` LBM TensorRT is available. LBM can also track 3D points now by lifting.
 - ```2025.04``` LBM is proposed for **online** and **real-time** 2D point tracking and object tracking in dynamic scenes, with only 18M parameter and achieve SOTA performance.
 
-## 📚 Tutorial
+### 📚 Tutorial
 - [```Train```](assets/train.md) train LBM from scratch. About 2 days on 4 NVIDIA H800 GPUs.
 - [```Eval```](assets/eval.md) eval LBM to reproduce results in the paper.
 - [```TensorRT```](assets/tensorrt.md) run LBM on NVIDIA Jetson devices as fast as on RTX 4090! 49 FPS on NVIDIA Jetson Orin NX.
 
-## 🛠️ Prepare
+### 🛠️ Prepare
 
 - **Clone** this repo:
     ```bash
@@ -49,7 +49,7 @@ The features of LBM inlcude:
   huggingface-cli download ZhengGuangze/LBM lbm.pt --local-dir checkpoints
   ```
 
-## ▶️ Demo
+### ▶️ Demo
 
 - **Click for point tracking**
 
@@ -66,5 +66,5 @@ The features of LBM inlcude:
   python tools/demo_box.py --video_path data/demo.mp4 --prompt bird
   ```
 
-## 🎫 License
+### 🎫 License
 The model is licensed under the [Apache 2.0 license](./LICENSE.txt).
