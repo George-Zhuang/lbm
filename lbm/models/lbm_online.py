@@ -145,18 +145,6 @@ class LBM_online(LBM):
         )
 
         # update memory
-        # 更安全的方法：只在需要时断开梯度，保持模型的正常工作
-        if self.training:
-            # 在训练模式下，创建新的状态副本，避免梯度累积
-            if self.collision_dist.requires_grad:
-                self.collision_dist = self.collision_dist.detach().clone()
-            if self.stream_dist.requires_grad:
-                self.stream_dist = self.stream_dist.detach().clone()
-            if self.mem_mask.requires_grad:
-                self.mem_mask = self.mem_mask.detach().clone()
-            if self.vis_mask.requires_grad:
-                self.vis_mask = self.vis_mask.detach().clone()
-            
         self.collision_dist = torch.cat([self.collision_dist[:, :, 1:], memory['collision'].unsqueeze(2)], dim=2) # b n m c
         self.stream_dist = torch.cat([self.stream_dist[:, :, 1:], memory['stream'].unsqueeze(2)], dim=2) # b n m c
         self.mem_mask = torch.cat([self.mem_mask[:, :, 1:], ~queried_now_or_before.unsqueeze(-1)], dim=2) # b n m                          
@@ -166,9 +154,6 @@ class LBM_online(LBM):
 
         ref_tracks = out_t[-1]['reference_points'].squeeze(-2, -4) # n 2
         coord_pred = ref_tracks + offset[0] # n 2
-        # 更安全的方法：只在训练模式下断开梯度
-        if self.training and coord_pred.requires_grad:
-            coord_pred = coord_pred.detach().clone()
         self.last_pos = coord_pred.clone()
         vis_pred = F.sigmoid(vis)[0]
         coord_pred[:, 1] = (coord_pred[:, 1] / self.size[0]) * H
@@ -384,18 +369,6 @@ class LBM_export(LBM):
         )
 
         # update memory
-        # 更安全的方法：只在需要时断开梯度，保持模型的正常工作
-        if self.training:
-            # 在训练模式下，创建新的状态副本，避免梯度累积
-            if collision_dist.requires_grad:
-                collision_dist = collision_dist.detach().clone()
-            if stream_dist.requires_grad:
-                stream_dist = stream_dist.detach().clone()
-            if vis_mask.requires_grad:
-                vis_mask = vis_mask.detach().clone()
-            if mem_mask.requires_grad:
-                mem_mask = mem_mask.detach().clone()
-            
         collision_dist_new = torch.cat([collision_dist[:, :, 1:], memory['collision'].unsqueeze(2)], dim=2) # b n m c
         stream_dist_new = torch.cat([stream_dist[:, :, 1:], memory['stream'].unsqueeze(2)], dim=2) # b n m c
         vis_mask_new = torch.cat([vis_mask[:, :, 1:], (F.sigmoid(vis) < self.visibility_threshold).unsqueeze(-1)], dim=2) # b n m
