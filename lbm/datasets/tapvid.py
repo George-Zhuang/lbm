@@ -9,7 +9,6 @@ import mediapy as media
 from PIL import Image
 from typing import Mapping, Tuple, Union
 
-# These classes are adapted from https://github.com/facebookresearch/co-tracker/blob/main/cotracker/datasets/kubric_movif_dataset.py
 
 DatasetElement = Mapping[str, Mapping[str, Union[np.ndarray, str]]]
 
@@ -86,7 +85,7 @@ def sample_queries_strided(
 class TAPVid(torch.utils.data.Dataset):
     def __init__(self, args):
 
-        data_root = args.tapvid_root
+        data_root = args.val_root
         self.dataset_type = args.eval_dataset
         
         self.resize_to_256 = True
@@ -123,11 +122,15 @@ class TAPVid(torch.utils.data.Dataset):
         # print("found %d unique videos in %s" % (len(self.points_dataset), data_root))
 
     def __getitem__(self, index):
-        # :return rgbs: (T, 3, 256, 256)       | in range [0, 255]
-        # :return trajs: (T, N, 2)             | in range [0, 256-1]
-        # :return visibles: (T, N)             | Boolean
-        # :return query_points: (N, 3)         | in format (t, y, x), in range [0, 256-1]
-
+        '''
+        Args:
+            index: int
+        Returns:
+            rgbs: (T, 3, 256, 256)
+            trajs: (T, N, 2)
+            visibles: (T, N)
+            query_points: (N, 3), in format (t, y, x), in range [0, 255]
+        '''
         if "davis" in self.dataset_type:
             video_name = self.video_names[index]
         else:
@@ -158,62 +161,14 @@ class TAPVid(torch.utils.data.Dataset):
             converted = sample_queries_strided(target_occ, target_points, frames)
         assert converted["target_points"].shape[1] == converted["query_points"].shape[1]
 
-        trajs = torch.from_numpy(converted["target_points"])[0].permute(1, 0, 2).float()  # T, N, D
+        trajs = torch.from_numpy(converted["target_points"])[0].permute(1, 0, 2).float() # t n 2
 
         rgbs = torch.from_numpy(frames).permute(0, 3, 1, 2).float()
         visibles = torch.logical_not(torch.from_numpy(converted["occluded"]))[0].permute(
             1, 0
-        )  # T, N
-        query_points = torch.from_numpy(converted["query_points"])[0]  # T, N
+        ) # t n
+        query_points = torch.from_numpy(converted["query_points"])[0] # t n 3
         return rgbs, trajs, visibles, query_points
 
     def __len__(self):
         return len(self.points_dataset)
-
-
-class TAPVid_Depth(TAPVid):
-    def __init__(self, args):
-
-        data_root = args.tapvid_root
-        self.dataset_type = args.eval_dataset
-        
-        self.resize_to_256 = True
-        self.queried_first = True
-
-        if "kinetics_depth" in self.dataset_type:
-            all_paths = glob(os.path.join(data_root, "*_of_0010_with_depth.pkl"))
-            points_dataset = []
-            for pickle_path in all_paths:
-                with open(pickle_path, "rb") as f:
-                    data = pickle.load(f)
-                    points_dataset = points_dataset + data
-            self.points_dataset = points_dataset
-            
-        elif "davis_depth" in self.dataset_type:
-            with open(data_root, "rb") as f:
-                self.points_dataset = pickle.load(f)
-            if "davis_depth" in self.dataset_type:
-                self.video_names = sorted(list(self.points_dataset.keys()))
-
-        elif "rgb_stacking_depth" in self.dataset_type:
-            with open(data_root, "rb") as f:
-                self.points_dataset = pickle.load(f)
-
-        elif "robotap_depth" in self.dataset_type:
-            all_paths = glob(os.path.join(data_root, "robotap_split*.pkl"))
-            points_dataset = []
-            for pickle_path in all_paths:
-                with open(pickle_path, "rb") as f:
-                    data = list(pickle.load(f).values())
-                    points_dataset = points_dataset + data
-            self.points_dataset = points_dataset
-
-    def __getitem__(self, index):
-        if "davis" in self.dataset_type:
-            video_name = self.video_names[index]
-        else:
-            video_name = index
-        rgbs, trajs, visibles, query_points = super().__getitem__(index)
-        depth_preds = self.points_dataset[video_name]["depth_preds"].copy()
-        depth_preds = depth_preds[:, None, :, :]
-        return rgbs, trajs, visibles, query_points, depth_preds

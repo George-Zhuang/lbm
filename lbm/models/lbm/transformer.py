@@ -1,18 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from mmcv.ops import MultiScaleDeformableAttention
 from einops import rearrange
-USE_MMCV = True
-if USE_MMCV:
-    print('Using MMCV MSDeformAttn')
-    from mmcv.ops import MultiScaleDeformableAttention
-else:
-    print('Using custom MSDeformAttn')
-    from lbm.models.lbm.msdeformattn import MultiScaleDeformableAttention
+
+from lbm.utils.coord_utils import indices_to_coords
 
 
 class LBMTransformer(nn.Module):
-    def __init__(self, size, stride, n_layer, hidden_dim, n_head, n_level, n_neighbor, n_mem, n_topk, offset_dim=2, dropout=0.1, random_mask_ratio=0, spa_corr_thre=1000, add_spatial_penalty=False):
+    def __init__(self, size, stride, n_layer, hidden_dim, n_head, n_level, n_neighbor, n_mem, n_topk, dropout=0.1, random_mask_ratio=0):
         super().__init__()
         self.size = size
         self.stride = stride
@@ -26,7 +22,7 @@ class LBMTransformer(nn.Module):
         self.register_buffer('start_levels', torch.tensor([0, h*w, h*w + h*w//4, h*w + h*w//4 + h*w//16], dtype=torch.long))
         
         self.layers = nn.ModuleList([
-            LBMTransformerLayer(size, stride, hidden_dim, n_head, n_level, n_neighbor, n_mem, dropout, spa_corr_thre, add_spatial_penalty)
+            LBMTransformerLayer(size, stride, hidden_dim, n_head, n_level, n_neighbor, n_mem, dropout)
             for i in range(n_layer)
         ])
 
@@ -35,7 +31,7 @@ class LBMTransformer(nn.Module):
         self.offset_norm = nn.LayerNorm(hidden_dim)
         self.offset_ffn = MLP(hidden_dim, hidden_dim, dropout=dropout)
         self.offset_norm2 = nn.LayerNorm(hidden_dim)
-        self.offset_head = MLP(hidden_dim, out_dim=offset_dim, expansion_factor=1, dropout=0)
+        self.offset_head = MLP(hidden_dim, out_dim=2, expansion_factor=1, dropout=0)
         self.offset_act = nn.Tanh()
             
         self.vis_layer = MultiScaleDeformableAttention(hidden_dim, n_head, n_level, n_neighbor, dropout=dropout, batch_first=True)
@@ -75,7 +71,7 @@ class LBMTransformer(nn.Module):
         return f_scales
     
 
-    def forward(self, query, feat, stream_dist, collision_dist, vis_mask, mem_mask, queried_now_or_before, last_pos=None):
+    def forward(self, query, feat, stream_dist, collision_dist, vis_mask, mem_mask, queried_now_or_before):
         '''
         Args:
             query: b n c
@@ -84,8 +80,6 @@ class LBMTransformer(nn.Module):
             collision_dist: b n m c, collision memory query
             vis_mask: b n m, visibility of query points
             mem_mask: b n m, memory mask
-            queried_now_or_before: b n, queried now or before
-            last_pos: b n 2 or None, last position of each query point
         '''
         b, c, h, w = feat.shape
         device = feat.device
@@ -97,7 +91,7 @@ class LBMTransformer(nn.Module):
         for i in range(len(self.layers)):
             corr, reference_points, reference_rho, query = self.layers[i](
                 query, feats, stream_dist, collision_dist, vis_mask, mem_mask, self.random_mask_ratio,
-                self.spatial_shapes, self.start_levels, self.layers_n_topk[i], last_pos
+                self.spatial_shapes, self.start_levels, self.layers_n_topk[i]
             )
             out.append({
                 'corr': corr, # b n hw
@@ -126,11 +120,11 @@ class LBMTransformer(nn.Module):
         offset = self.offset_act(offset) * self.stride # b n 2
 
         # collision memory
-        pred_points = reference_points + offset.unsqueeze(2) # b n 1 2
-        pred_points_norm = pred_points / torch.tensor(self.size[::-1], device=device) # b n 1 2
-        pred_points_norm = torch.clamp(pred_points_norm, 0, 1) # b n 1 2
-        pred_points_ms = pred_points_norm.unsqueeze(3).expand(-1, -1, -1, 4, -1) # b n 1 4 2
-        pred_points_ms = pred_points_ms.view(b, -1, 4, 2) # b n*1 4 2
+        pred_points = reference_points + offset.unsqueeze(2) # b n k 2
+        pred_points_norm = pred_points / torch.tensor(self.size[::-1], device=device) # b n k 2
+        pred_points_norm = torch.clamp(pred_points_norm, 0, 1) # b n k 2
+        pred_points_ms = pred_points_norm.unsqueeze(3).expand(-1, -1, -1, 4, -1) # b n k 4 2
+        pred_points_ms = pred_points_ms.view(b, -1, 4, 2) # b n*k 4 2
 
         collision_dist = query.clone()
         attn_output = self.collision_mem_layer(collision_dist, feats_cat, feats_cat, reference_points=pred_points_ms, spatial_shapes=self.spatial_shapes.to(device), level_start_index=self.start_levels.to(device))
@@ -158,13 +152,11 @@ class LBMTransformer(nn.Module):
 
 
 class LBMTransformerLayer(nn.Module): 
-    def __init__(self, size, stride, hidden_dim, n_head, n_level, n_neighbor, n_mem, dropout=0.1, spa_corr_thre=1000, add_spatial_penalty=False):
+    def __init__(self, size, stride, hidden_dim, n_head, n_level, n_neighbor, n_mem, dropout=0.1):
         super().__init__()
         self.size = size
         self.stride = stride
         self.hidden_dim = hidden_dim
-        self.spa_corr_thre = spa_corr_thre
-        self.add_spatial_penalty = add_spatial_penalty
         
         self.collision_attention = nn.MultiheadAttention(hidden_dim, n_head, dropout, batch_first=True)
         self.collision_dropout = nn.Dropout(dropout)
@@ -197,13 +189,13 @@ class LBMTransformerLayer(nn.Module):
         self.lattice_update_norm2 = nn.LayerNorm(hidden_dim)
         self.reference_rho = nn.Linear(hidden_dim, 1)
 
-    def correlation(self, query, feats, size, last_pos):
+
+    def correlation(self, query, feats, size):
         '''
         Args:
             query: b n c
             feats: [b h*w c, b h*w/4 c, b h*w/16 c, b h*w/64 c]
             size: (h, w)
-            last_pos: b n 2, last position of each query point
         Returns:
             c: b n hw
         '''
@@ -234,24 +226,10 @@ class LBMTransformerLayer(nn.Module):
         c = self.corr_conv(c) + c[:, 0:1] # bn 1 h w
         c = c.view(b, n, h*w)
 
-        if self.add_spatial_penalty:
-            y_coords = torch.arange(h, device=c.device).float()
-            x_coords = torch.arange(w, device=c.device).float()
-            grid_y, grid_x = torch.meshgrid(y_coords, x_coords, indexing='ij')
-            grid_coords = torch.stack([grid_x, grid_y], dim=-1).view(-1, 2)  # hw 2
-            
-            last_pos = last_pos / self.stride  # n 2
-            last_pos = last_pos.unsqueeze(-2)  # n 1 2
-            grid_coords = grid_coords.unsqueeze(0).expand(n, -1, -1)  # n hw 2
-            dist = torch.norm(last_pos - grid_coords, dim=-1)  # b n hw
-            
-            dist_weight = torch.exp(-dist / self.spa_corr_thre)  # b n hw
-            c = c * dist_weight
-
         return c
 
 
-    def forward(self, query, feats, stream_dist, collision_dist, vis_mask, mem_mask, random_mask_ratio, spatial_shapes, start_levels, n_topk, last_pos):
+    def forward(self, query, feats, stream_dist, collision_dist, vis_mask, mem_mask, random_mask_ratio, spatial_shapes, start_levels, n_topk):
         '''
         Args:
             query: b n c
@@ -263,7 +241,6 @@ class LBMTransformerLayer(nn.Module):
             spatial_shapes: [h w, h/2 w/2, h/4 w/4, h/8 w/8]
             start_levels: [0, h*w, h*w+h*w/4, h*w+h*w/4+h*w/16]
             n_topk: int, number of top-k reference points
-            last_pos: b n 2, last position of each query point
         '''
         b, n, c = query.shape
         H, W = self.size
@@ -323,9 +300,10 @@ class LBMTransformerLayer(nn.Module):
             q_streaming = rearrange(q_streaming, 'b n c -> (b n) 1 c')
             q_streaming[valid_indices] = q_valid
             q_streaming = rearrange(q_streaming, '(b n) 1 c -> b n c', b=b, n=n)
+            
 
         # correlation
-        corr = self.correlation(q_streaming, feats, size=(h, w), last_pos=last_pos) # b n hw
+        corr = self.correlation(q_streaming, feats, size=(h, w)) # b n hw
         top_k_indices = torch.topk(corr, n_topk, dim=-1)[1] # b n k
         reference_points = indices_to_coords(top_k_indices, self.size, self.stride) # b n k
         reference_points_norm = reference_points / torch.tensor(self.size[::-1], device=device) # b n k 2
@@ -375,34 +353,3 @@ class MLP(nn.Module):
 
     def forward(self, x):
         return self.net(x)
-
-
-def indices_to_coords(indices, size, ps):
-    '''
-    Args:
-        indices: (B, T, N)
-        size: (H, W)
-        ps: int, patch size
-    Returns:
-        coordinates: (B, T, N, 2) in [0, W] and [0, H] range
-    '''
-
-    B, T, N = indices.shape
-    H, W = size
-
-    num_columns = W // ps
-
-    
-    rows = indices // num_columns
-    cols = indices % num_columns
-    
-    y_coords = rows * ps + 0.5 * ps
-    x_coords = cols * ps + 0.5 * ps
-    
-    coordinates = torch.stack((x_coords, y_coords), dim=-1)
-
-    assert coordinates.shape == (B, T, N, 2)
-    assert torch.all(coordinates[:, :, :, 0] <= W)
-    assert torch.all(coordinates[:, :, :, 1] <= H)
-    
-    return coordinates

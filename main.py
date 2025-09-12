@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------
 # LBM: lattice Boltzmann model
-#   - Adapted from Track-On (https://github.com/gorkaydemir/track_on)
+#   - Modified from Track-On (https://github.com/gorkaydemir/track_on)
 # ---------------------------------------------------------------------
 import os
 import sys
@@ -21,26 +21,22 @@ from lbm.utils.eval_utils import Evaluator, compute_tapvid_metrics
 from lbm.utils.coord_utils import get_queries
 from lbm.utils.eval_utils import load_config, print_args
 
-from lbm.models import LBM
+from lbm.models.lbm.lbm import LBM
 
 
 def get_args():
     parser = argparse.ArgumentParser("LBM")
-    parser.add_argument('--config_path', type=str, default='lbm/configs/default.yaml')
-    parser.add_argument('--movi_f_root', type=str, default="data/kubric_lbm")
-    parser.add_argument('--tapvid_root', type=str, default="data/tapvid_davis/tapvid_davis.pkl")
+    parser.add_argument('--config_path', type=str, default='lbm/configs/lbm.yaml')
+    parser.add_argument('--train_root', type=str, default="data/kubric_lbm")
+    parser.add_argument('--val_root', type=str, default="data/tapvid_davis/tapvid_davis.pkl")
     # eval
-    parser.add_argument('--validation', type=bool, default=False)
+    parser.add_argument('--validation', action="store_true")
     parser.add_argument('--eval_dataset', type=str, choices=[
         "davis", "kinetics", "robotap", "bft", "tao", "ovt-b"
     ], default="davis")
     parser.add_argument('--checkpoint_path', type=str, default=None)
     # training
-    parser.add_argument('--epoch_num', type=int, default=150)
-    parser.add_argument('--bs', type=int, default=4)
-    parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--wd', type=float, default=1e-5)
-    parser.add_argument('--amp', type=bool, default=True)
+    parser.add_argument('--amp', action="store_true")
     parser.add_argument('--model_save_path', type=str, default="checkpoints/lbm")
     args = parser.parse_args()
     args = load_config(args)
@@ -134,6 +130,8 @@ def evaluate(args, val_dataloader, model, epoch, verbose=False):
         trajectory = trajectory.cuda(non_blocking=True)              # (1, T, N, 2)
         visibility = visibility.cuda(non_blocking=True)              # (1, T, N)
         video = video.cuda(non_blocking=True)                    # (1, T, 3, H, W)
+        B, T, N, _ = trajectory.shape
+        _, _, _, H, W = video.shape
         device = video.device
 
         # Change (t, y, x) to (t, x, y)
@@ -184,8 +182,8 @@ def evaluate(args, val_dataloader, model, epoch, verbose=False):
 def main_worker(args):
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
+
     print_args(args)
-    os.makedirs(args.model_save_path, exist_ok=True)
     start_time = time.time()
 
     # ##### Data #####
@@ -228,7 +226,7 @@ def main_worker(args):
     start_epoch = to_restore["epoch"]
 
     if args.validation and args.rank == 0:
-        model.module.visibility_threshold = args.val_vis_delta
+        model.module.visibility_treshold = args.val_vis_delta
         model.module.set_memory_size(args.val_memory_size)
         evaluate(args, val_dataloader, model, -1, verbose=True)
         total_time = time.time() - start_time
@@ -243,36 +241,6 @@ def main_worker(args):
     
     print("Training starts")
 
-    # === Sanity Check ===
-    if args.rank == 0:
-        print("Running sanity check on validation set...")
-        try:
-            for j, (video, trajectory, visibility, query_points_i) in enumerate(val_dataloader):
-                if j >= 1:  
-                    break
-                    
-                query_points_i = query_points_i.cuda(non_blocking=True)
-                trajectory = trajectory.cuda(non_blocking=True)
-                visibility = visibility.cuda(non_blocking=True)
-                video = video.cuda(non_blocking=True)
-                device = video.device
-
-                queries = query_points_i.clone().float()
-                queries = torch.stack([queries[:, :, 0], queries[:, :, 2], queries[:, :, 1]], dim=2).to(device)
-
-                out = model.module(video, queries, trajectory, visibility)
-                pred_trajectory = out["points"]
-                pred_visibility = out["visibility"]
-                
-                print(f"Sanity check passed! Video shape: {video.shape}, Pred shape: {pred_trajectory.shape}")
-                break
-                
-        except Exception as e:
-            print(f"Sanity check failed: {e}")
-            raise e
-    
-    dist.barrier()
-    # === === ===
 
     best_models = {"aj": [-1, -1], "oa": [-1, -1], "delta_avg": [-1, -1]}       # [epoch, value]
     for epoch in range(start_epoch, args.epoch_num):

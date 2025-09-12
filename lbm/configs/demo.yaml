@@ -14,16 +14,13 @@ num_neighbors: 9
 top_k_regions: 9
 dropout: 0.1
 memory_size: 12
-spa_corr_thre: 1000
-add_spatial_penalty: true
-
 lambda_cls: 3.0
 lambda_vis: 1.0
-lambda_off: 1.0
+lambda_reg: 1.0
 lambda_unc: 1.0
 lambda_ref: 1.0
-loss_after_query: true
-checkpoint_path: 'checkpoints/lbm.pt'
+loss_after_query: false
+checkpoint_path: 'checkpoints/lbmv1.pt'
 detector_checkpoint_path: 'checkpoints/yoloe-11l-seg.pt'
 
 # track

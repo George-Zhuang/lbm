@@ -1,13 +1,11 @@
 
 import wandb
 
-
 loss_acc = {}
 def log_batch_loss(args, optimizer, dataloader, total_update_num, i, out):
     if args.rank == 0:
         global loss_acc
 
-        
         for key, value in out.items():
             if "loss" in key:
                 loss_acc[key] = loss_acc.get(key, 0) + value.item()
@@ -36,7 +34,7 @@ def log_epoch_loss(args, total_loss, epoch, dataloader):
 def log_eval_metrics(args, results, epoch):
     if args.rank == 0:
 
-        if not args.validation:
+        if not args.validation and not args.online_validation:
             wandb.log({"Evaluation/delta_avg": results["delta_avg"],
                         "Evaluation/delta_1": results["delta_1"],
                         "Evaluation/delta_2": results["delta_2"],
@@ -58,7 +56,7 @@ def log_eval_metrics(args, results, epoch):
 
 def init_wandb(args):
     if args.rank == 0:
-        project_name = "LBM"
+        project_name = "Track-On"
         run_name = args.model_save_path.split("/")[-1]
         
         wandb.init(project=project_name, name=run_name, config=args)
@@ -89,6 +87,3 @@ def init_wandb(args):
         wandb.define_metric("Training/point_loss", step_metric="iteration")
         wandb.define_metric("Training/visibility_loss", step_metric="iteration")
         wandb.define_metric("Training/offset_loss", step_metric="iteration")
-        wandb.define_metric("Training/depth_loss", step_metric="iteration")
-        wandb.define_metric("Training/uncertainty_loss", step_metric="iteration")
-        wandb.define_metric("Training/uncertainty_loss_topk", step_metric="iteration")

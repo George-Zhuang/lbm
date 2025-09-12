@@ -25,7 +25,7 @@ dropout: 0.1
 memory_size: 12
 lambda_cls: 3.0
 lambda_vis: 1.0
-lambda_off: 1.0
+lambda_reg: 1.0
 lambda_unc: 1.0
 lambda_ref: 1.0
 loss_after_query: false

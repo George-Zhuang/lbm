@@ -3,13 +3,14 @@ import torch
 import torch.nn.functional as F
 from einops import rearrange
 
-from lbm.models import LBM
-from lbm.utils.object_tracker import LBMObjTracker
+from lbm.models.lbm.lbm import LBM
+from lbm.models.lbm.object_tracker import LBMObjTracker
 
 
 class LBM_online(LBM):
     def __init__(self, args, with_obj_tracker=False):
         super().__init__(args=args)
+        self.num_query = None
         self.t = 0
         self.N = 0
         self.query = None
@@ -18,7 +19,6 @@ class LBM_online(LBM):
         self.stream_dist = None
         self.vis_mask = None
         self.mem_mask = None
-        self.last_pos = None
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         if with_obj_tracker:
@@ -32,11 +32,7 @@ class LBM_online(LBM):
             query_points: (N, 2) in xy format, where N is the number of points
             first_frame: (1, C, H, W) video frame 
         '''
-        H, W = first_frame.shape[-2:]
         self.query_points = query_points
-        self.last_pos = query_points.clone()
-        self.last_pos[:, 1] = (self.last_pos[:, 1] / H) * self.size[0]
-        self.last_pos[:, 0] = (self.last_pos[:, 0] / W) * self.size[1]
         self.N = query_points.shape[0]
         self.img_size = first_frame.shape[-2:]
         self.device = first_frame.device
@@ -141,53 +137,24 @@ class LBM_online(LBM):
             vis_mask=self.vis_mask.clone(), 
             mem_mask=self.mem_mask.clone(), 
             queried_now_or_before=queried_now_or_before,
-            last_pos=self.last_pos,
         )
 
         # update memory
         self.collision_dist = torch.cat([self.collision_dist[:, :, 1:], memory['collision'].unsqueeze(2)], dim=2) # b n m c
         self.stream_dist = torch.cat([self.stream_dist[:, :, 1:], memory['stream'].unsqueeze(2)], dim=2) # b n m c
         self.mem_mask = torch.cat([self.mem_mask[:, :, 1:], ~queried_now_or_before.unsqueeze(-1)], dim=2) # b n m                          
-        self.vis_mask = torch.cat([self.vis_mask[:, :, 1:], (F.sigmoid(vis) < self.visibility_threshold).unsqueeze(-1)], dim=2) # b n m
+        self.vis_mask = torch.cat([self.vis_mask[:, :, 1:], (F.sigmoid(vis) < self.visibility_treshold).unsqueeze(-1)], dim=2) # b n m
 
         self.t += 1
 
         ref_tracks = out_t[-1]['reference_points'].squeeze(-2, -4) # n 2
         coord_pred = ref_tracks + offset[0] # n 2
-        self.last_pos = coord_pred.clone()
-        vis_pred = F.sigmoid(vis)[0]
+        vis_pred = F.sigmoid(vis)[0] > self.visibility_treshold
+
         coord_pred[:, 1] = (coord_pred[:, 1] / self.size[0]) * H
         coord_pred[:, 0] = (coord_pred[:, 0] / self.size[1]) * W
 
         return coord_pred, vis_pred, f_t
-    
-    def online_forward_3d(self, frame, framedepth):
-        '''
-        Online forward for 3D point tracking.
-        Args:
-            frame: (1, C, H, W) video frame to extract features from
-            framedepth: (1, 1, H, W) video frame depth to extract features from
-        '''
-        _, c, h, w = frame.shape
-        coord_pred, vis_pred, f_t = self.online_forward(frame)
-
-        # normalize to [0,1] for sampling
-        normalized_points = coord_pred.clone()
-        normalized_points[..., 0] = normalized_points[..., 0] / w
-        normalized_points[..., 1] = normalized_points[..., 1] / h
-
-        # convert to grid_sample format
-        grid = normalized_points.reshape(1, self.N, 1, 2) * 2 - 1  # convert to [-1,1]
-        sampled_depth = F.grid_sample(
-            framedepth,
-            grid,
-            mode='bilinear',
-            padding_mode='zeros',
-            align_corners=True
-        ) # (1, 1, N, 1)
-        sampled_depth = sampled_depth.squeeze(0).squeeze(0) # (N, 1)
-
-        return coord_pred, vis_pred, sampled_depth
 
     def online_forward_obj(self, frame, bboxes, scores, labels):
         '''
@@ -231,7 +198,7 @@ class LBM_online(LBM):
         # Return predictions from *before* the update and the tracker instances
         return coords, visibility, pred_track_instances
 
-
+        
 class LBM_export(LBM):
     @staticmethod
     def init(query_points, first_frame_feat, img_size, memory_size=12):
@@ -383,3 +350,5 @@ class LBM_export(LBM):
         coord_pred[:, 0] = (coord_pred[:, 0] / self.size[1]) * W
 
         return f_t, coord_pred, vis_pred, collision_dist_new, stream_dist_new, vis_mask_new, mem_mask_new, last_pos_new
+
+

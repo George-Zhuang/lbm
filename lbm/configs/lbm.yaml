@@ -1,11 +1,10 @@
 # === Data settings ===
-movi_f_3d: false
-movi_f_root: data/kubric_lbm
-tapvid_root: data/tapvid_davis/tapvid_davis.pkl
+train_root: data/kubric_lbm
+val_root: data/tapvid_davis/tapvid_davis.pkl
 eval_dataset: davis  # choices: [davis, kinetics, robotap, bft, tao, ovt-b]
 augmentation: true
 input_size: [384, 512]
-model_save_path: checkpoints/lbm
+model_save_path: lbm
 vis_save_path: null
 checkpoint_path: null # for resume training or evaluation
 seed: 42
@@ -23,19 +22,17 @@ top_k_regions: 9
 dropout: 0.1
 random_memory_mask_drop: 0.1
 memory_size: 12  # for training
-spa_corr_thre: 1000
-add_spatial_penalty: false
 
 # === Training settings ===
 epoch_num: 150
 lr: 0.0005 # 5e-4
 wd: 0.00001 # 1e-5
 bs: 4  # Batch size per GPU
-amp: false
+amp: true
 loss_after_query: true
 lambda_cls: 3.0  # Classification CE loss
 lambda_vis: 1.0  # Visibility CE loss
-lambda_off: 1.0  # Offset prediction L1 loss
+lambda_reg: 1.0  # Offset prediction L1 loss
 lambda_unc: 1.0  # Uncertainty CE loss
 lambda_ref: 1.0  # Reference point uncertainty CE loss
 
@@ -53,18 +50,3 @@ dataset_settings:
   kinetics:
     val_memory_size: 36
     val_vis_delta: 0.8
-  dynamicreplica:
-    val_memory_size: 120
-    val_vis_delta: 0.8
-  pointodyssey:
-    val_memory_size: 120
-    val_vis_delta: 0.8
-  pstudio:
-    val_memory_size: 24
-    val_vis_delta: 0.9
-  drivetrack:
-    val_memory_size: 24
-    val_vis_delta: 0.9
-  adt:
-    val_memory_size: 24
-    val_vis_delta: 0.9

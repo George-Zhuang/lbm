@@ -8,9 +8,8 @@ import torch
 import torch.distributed as dist
 import torch.backends.cudnn as cudnn
 
-from lbm.datasets.movi_f import Movi_F
-from lbm.datasets.tapvid import TAPVid, TAPVid_Depth
-from lbm.datasets.tapvid3d import TapVid3DDataset
+from lbm.datasets.kubric_movi_f import Movi_F
+from lbm.datasets.tapvid import TAPVid
 from lbm.datasets.dynamicreplica import DynamicReplicaDataset
 from lbm.datasets.pointodyssey import PointOdysseyDataset
 
@@ -22,20 +21,8 @@ def get_dataloaders(args):
         np.random.seed(worker_seed)
         random.seed(worker_seed)
 
-    if args.eval_dataset in ["kinetics", "davis", "rgb_stacking", "robotap"]:
-        val_dataset = TAPVid(args)
-    elif args.eval_dataset == "dynamicreplica":
-        dataset_root = args.tapvid_root
-        val_dataset = DynamicReplicaDataset(dataset_root, sample_len=300, only_first_n_samples=1)
-    elif args.eval_dataset == "pointodyssey":
-        dataset_root = args.tapvid_root
-        val_dataset = PointOdysseyDataset(dataset_root, dset='test', N=256, verbose=False)
-    elif args.eval_dataset in ["pstudio", "drivetrack", "adt"]:
-        val_dataset = TapVid3DDataset(args)
-    elif args.eval_dataset in ["davis_depth", "kinetics_depth", "robotap_depth"]:
-        val_dataset = TAPVid_Depth(args)
-
     if args.validation:
+        val_dataset = TAPVid(args)
         val_dataloader = torch.utils.data.DataLoader(val_dataset,
             batch_size=1,
             shuffle=False,
@@ -45,10 +32,17 @@ def get_dataloaders(args):
 
         return None, val_dataloader
 
-    if args.movi_f_3d:
-        train_dataset = Movi_F_RGBD(args)
+    train_dataset = Movi_F(args)
+    if args.eval_dataset in ["kinetics", "davis", "rgb_stacking", "robotap"]:
+        val_dataset = TAPVid(args)
+    elif args.eval_dataset == "dynamicreplica":
+        dataset_root = args.val_root
+        val_dataset = DynamicReplicaDataset(dataset_root, sample_len=300, only_first_n_samples=1)
+    elif args.eval_dataset == "pointodyssey":
+        dataset_root = args.val_root
+        val_dataset = PointOdysseyDataset(dataset_root, dset='test', N=256, verbose=False)
     else:
-        train_dataset = Movi_F(args)
+        raise ValueError(f"Invalid evaluation dataset: {args.eval_dataset}")
 
     num_workers = 8 # 12
     train_sampler = torch.utils.data.DistributedSampler(train_dataset, rank=args.rank, shuffle=True)

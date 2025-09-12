@@ -1,50 +1,43 @@
 import os
 import cv2
-import torch
 import numpy as np
-from PIL import Image
 import torch
 import torchvision.transforms as T
+from PIL import Image
 from torch.utils.data import Dataset
 
-
-# These classes are adapted from https://github.com/facebookresearch/co-tracker/blob/main/cotracker/datasets/kubric_movif_dataset.py
 
 class Movi_F_Base(Dataset):
     def __init__(self, args):
         super(Movi_F_Base, self).__init__()
 
-        self.data_root = args.movi_f_root
+        self.data_root = args.train_root
         self.seq_len = args.T
         self.traj_per_sample = args.N
         self.sample_vis_1st_frame = True
         self.use_augs = True
-        self.crop_size = args.input_size # (384, 512)
+        self.crop_size = args.input_size # (384, 512)
         self.augmentation = args.augmentation
 
         # photometric augmentation
         self.photo_aug = T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.25 / 3.14)
         self.blur_aug = T.GaussianBlur(11, sigma=(0.1, 2.0))
-
         self.blur_aug_prob = 0.25
         self.color_aug_prob = 0.25
-
         # occlusion augmentation
         self.eraser_aug_prob = 0.5
         self.eraser_bounds = [2, 100]
         self.eraser_max = 10
-
         # occlusion augmentation
         self.replace_aug_prob = 0.5
         self.replace_bounds = [2, 100]
         self.replace_max = 10
-
         # spatial augmentations
         self.pad_bounds = [0, 25]
         self.resize_lim = [0.75, 1.25]  # sample resizes from here
         self.resize_delta = 0.05
         self.max_crop_offset = 15
-
+        # flip augmentation
         self.do_flip = True
         self.h_flip_prob = 0.5
         self.v_flip_prob = 0.5
@@ -53,30 +46,39 @@ class Movi_F_Base(Dataset):
         return NotImplementedError
 
     def __getitem__(self, index):
-
-        rgbs, trajs, visibles, got_k_points = self.getitem_helper(index)
-        # rgbs: (T, 3, H, W)
-        # trajs: (T, got_k_points, 2)
-        # visibles: (T, got_k_points)
-        # got_k_points: int
-
-        # <Trajectories>
+        '''
+        Args:
+            index: int
+        Returns:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            visibles: (T, num_points)
+            num_points: int
+        '''
+        rgbs, trajs, visibles, num_points = self.getitem_helper(index)
         trajs_zero = torch.zeros(self.seq_len, self.traj_per_sample, 2)
-        trajs_zero[:, :got_k_points] = trajs
+        trajs_zero[:, :num_points] = trajs
         trajs = trajs_zero
-        # </Trajectories>
-
-        # <Visibility>
         visibles_zero = torch.zeros(self.seq_len, self.traj_per_sample, dtype=torch.bool)
-        visibles_zero[:, :got_k_points] = visibles
+        visibles_zero[:, :num_points] = visibles
         visibles = visibles_zero
-        # </Visibility>
-        
-        return rgbs, trajs, visibles, got_k_points
+        return rgbs, trajs, visibles, num_points
 
     def add_photometric_augs(self, rgbs, trajs, visibles, eraser=True, replace=True):
+        '''
+        Perform photometric augmentations on the data, including eraser and replace.
+        Args:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            visibles: (T, num_points)
+            eraser: bool
+            replace: bool
+        Returns:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            visibles: (T, num_points)
+        '''
         T, N, _ = trajs.shape
-
         S = len(rgbs)
         H, W = rgbs[0].shape[:2]
         assert S == T
@@ -160,22 +162,28 @@ class Movi_F_Base(Dataset):
         return rgbs, trajs, visibles
 
     def add_spatial_augs(self, rgbs, trajs, visibles, target_crop_size):
+        '''
+        Perform spatial augmentations on the data, including padding, scaling, and flipping.
+        Args:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            visibles: (T, num_points)
+            target_crop_size: (H, W)
+        Returns:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+        '''
         T, N, __ = trajs.shape
-
         S = len(rgbs)
         H, W = rgbs[0].shape[:2]
         assert S == T
 
         rgbs = [rgb.astype(np.float32) for rgb in rgbs]
-
-        ############ spatial transform ############
-
         # padding
         pad_x0 = np.random.randint(self.pad_bounds[0], self.pad_bounds[1])
         pad_x1 = np.random.randint(self.pad_bounds[0], self.pad_bounds[1])
         pad_y0 = np.random.randint(self.pad_bounds[0], self.pad_bounds[1])
         pad_y1 = np.random.randint(self.pad_bounds[0], self.pad_bounds[1])
-
         rgbs = [np.pad(rgb, ((pad_y0, pad_y1), (pad_x0, pad_x1), (0, 0))) for rgb in rgbs]
         trajs[:, :, 0] += pad_x0
         trajs[:, :, 1] += pad_y0
@@ -187,10 +195,8 @@ class Movi_F_Base(Dataset):
         scale_y = scale
         H_new = H
         W_new = W
-
         scale_delta_x = 0.0
         scale_delta_y = 0.0
-
         rgbs_scaled = []
         for s in range(S):
             if s == 1:
@@ -303,21 +309,26 @@ class Movi_F_Base(Dataset):
         return rgbs, trajs
 
     def crop(self, rgbs, trajs, sampled_crop_size):
+        '''
+        Perform cropping.
+        Args:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            sampled_crop_size: (H, W)
+        Returns:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+        '''
         T, N, _ = trajs.shape
-
         S = len(rgbs)
         H, W = rgbs[0].shape[:2]
         assert S == T
-
-        ############ spatial transform ############
-
         H_new = H
         W_new = W
         
         if self.augmentation: # simple random crop
             y0 = 0 if sampled_crop_size[0] >= H_new else np.random.randint(0, H_new - sampled_crop_size[0])
             x0 = 0 if sampled_crop_size[1] >= W_new else np.random.randint(0, W_new - sampled_crop_size[1])
-
         else:                 # center crop
             y0 = (H_new - sampled_crop_size[0]) // 2
             x0 = (W_new - sampled_crop_size[1]) // 2
@@ -326,7 +337,6 @@ class Movi_F_Base(Dataset):
 
         trajs[:, :, 0] -= x0
         trajs[:, :, 1] -= y0
-
         return rgbs, trajs
 
 
@@ -334,15 +344,12 @@ class Movi_F(Movi_F_Base):
     def __init__(self, args):
         super(Movi_F, self).__init__(args)
 
-        self.root = args.movi_f_root
-        self.crop_size = args.input_size    # (384, 512)
-            
+        self.root = args.train_root
+        self.crop_size = args.input_size # (384, 512)
         self.original_size = (512, 512)
         self.augmentation = args.augmentation
-
         self.T = args.T
         self.N = args.N
-    
         self.seq_names = [fname for fname in os.listdir(self.root) if os.path.isdir(os.path.join(self.root, fname))]
         self.seq_names = sorted(self.seq_names)
 
@@ -350,10 +357,15 @@ class Movi_F(Movi_F_Base):
         return len(self.seq_names)
     
     def getitem_helper(self, idx):
-        # :return rgbs: (T, 3, 448, 448)
-        # :return trajs: (T, N, 2)
-        # :return visibles: (T, N)
-
+        '''
+        Args:
+            idx: int
+        Returns:
+            rgbs: (T, 3, H, W)
+            trajs: (T, num_points, 2)
+            visibles: (T, num_points)
+            num_points: int
+        '''
         seq_name = self.seq_names[idx]
 
         npy_path = os.path.join(self.root, seq_name, seq_name + ".npy")
@@ -367,8 +379,7 @@ class Movi_F(Movi_F_Base):
 
         assert len(rgbs_list) == 24, f"len(rgbs): {len(rgbs_list)}"
 
-
-        rgbs = np.stack(rgbs_list)       # (24, 384, 512, 3)
+        rgbs = np.stack(rgbs_list) # (t, 512, 512, 3)
         annot_dict = np.load(npy_path, allow_pickle=True).item()
         traj_2d = annot_dict["coords"]
         visibility = annot_dict["visibility"]
@@ -401,8 +412,8 @@ class Movi_F(Movi_F_Base):
         visibility[traj_2d[:, :, 1] > sampled_crop_size[0]] = False
         visibility[traj_2d[:, :, 1] < 0] = False
 
-        visibility = torch.from_numpy(visibility)       # (T, N)
-        traj_2d = torch.from_numpy(traj_2d)             # (T, N, 2), in [0, 448] range
+        visibility = torch.from_numpy(visibility) # t 2048
+        traj_2d = torch.from_numpy(traj_2d) # t 2048 2
 
         visibile_pts_first_frame_inds = (visibility[0]).nonzero(as_tuple=False)[:, 0]
 
@@ -413,12 +424,11 @@ class Movi_F(Movi_F_Base):
         else:
             point_inds = visibile_pts_inds[: self.N]
             
-
-        got_k_points = len(point_inds)
+        num_points = len(point_inds)
 
         visible_inds_sampled = visibile_pts_inds[point_inds]
-        trajs = traj_2d[:, visible_inds_sampled].float()                          # (T, N, 2)
-        visibles = visibility[:, visible_inds_sampled]                            # (T, N)
-        rgbs = torch.from_numpy(np.stack(rgbs)).permute(0, 3, 1, 2).float()       # (T, 3, sampled_crop_size[0], sampled_crop_size[1])
+        trajs = traj_2d[:, visible_inds_sampled].float() # t n 2
+        visibles = visibility[:, visible_inds_sampled] # t n
+        rgbs = torch.from_numpy(np.stack(rgbs)).permute(0, 3, 1, 2).float() # t 3 sampled_crop_size[0] sampled_crop_size[1]
 
-        return rgbs, trajs, visibles, got_k_points
+        return rgbs, trajs, visibles, num_points
