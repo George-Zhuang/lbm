@@ -34,7 +34,7 @@ def log_epoch_loss(args, total_loss, epoch, dataloader):
 def log_eval_metrics(args, results, epoch):
     if args.rank == 0:
 
-        if not args.validation and not args.online_validation:
+        if not args.validation:
             wandb.log({"Evaluation/delta_avg": results["delta_avg"],
                         "Evaluation/delta_1": results["delta_1"],
                         "Evaluation/delta_2": results["delta_2"],

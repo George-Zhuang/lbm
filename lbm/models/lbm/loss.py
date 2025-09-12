@@ -95,7 +95,6 @@ class Loss_Function(nn.Module):
             loss: float
         '''
         mask_point, _ = self.get_masks(gt_visibility, query_times)
-        print(offset.shape, ref_point.shape, gt_tracks.shape)
         gt_offset = gt_tracks - ref_point
         L_reg = F.l1_loss(offset, gt_offset, reduction="none") # b t n 2
         L_reg = L_reg.sum(dim=-1).view(-1) # b t n

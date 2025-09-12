@@ -260,6 +260,8 @@ def main_worker(args):
             smaller_delta_avg, aj, oa = evaluate(args, val_dataloader, model, epoch)
             
             # === Save Model ===
+            os.makedirs(args.model_save_path, exist_ok=True)
+
             save_dict = {
                 "model": model.state_dict(),
                 "optimizer": optimizer.state_dict(),
