@@ -1,6 +1,5 @@
 # ---------------------------------------------------------------------
 # LBM: lattice Boltzmann model
-#   - Modified from Track-On (https://github.com/gorkaydemir/track_on)
 # ---------------------------------------------------------------------
 import os
 import sys

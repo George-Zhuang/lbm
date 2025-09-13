@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from lbm.models.lbm.backbone import Backbone, LBMConvNeXt
+from lbm.models.lbm.backbone import Backbone
 from lbm.models.lbm.loss import Loss_Function
 from lbm.models.lbm.transformer import LBMTransformer
 
@@ -37,13 +37,7 @@ class LBM(nn.Module):
         self.h = self.size[0] // self.stride
         self.w = self.size[1] // self.stride
 
-        # self.backbone = Backbone(
-        #     size=self.size,
-        #     stride=self.stride,
-        #     embed_dim=self.embed_dim,
-        # )
-        
-        self.backbone = LBMConvNeXt(
+        self.backbone = Backbone(
             size=self.size,
             stride=self.stride,
             embed_dim=self.embed_dim,

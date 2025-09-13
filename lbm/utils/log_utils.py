@@ -56,7 +56,7 @@ def log_eval_metrics(args, results, epoch):
 
 def init_wandb(args):
     if args.rank == 0:
-        project_name = "Track-On"
+        project_name = "LBM"
         run_name = args.model_save_path.split("/")[-1]
         
         wandb.init(project=project_name, name=run_name, config=args)

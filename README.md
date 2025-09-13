@@ -66,5 +66,8 @@ The features of LBM inlcude:
   python tools/demo_box.py --video_path data/demo.mp4 --prompt bird
   ```
 
+### 😊 Acknowledgements
+Thanks to these great repositories: [Track-On](https://github.com/gorkaydemir/track_on), [CoTracker](https://github.com/facebookresearch/co-tracker), [DELTA](https://github.com/snap-research/DELTA_densetrack3d), [TAPNet](https://github.com/google-deepmind/tapnet), and many other inspiring works in the community.
+
 ### 🎫 License
 The model is licensed under the [Apache 2.0 license](./LICENSE.txt).
