@@ -6,7 +6,9 @@ Like **tracking anything**? Want **efficiency**? Try LBM!
 
 [Lattice Boltzmann Model for Learning Real-World Pixel Dynamicity](https://george-zhuang.github.io/lbm/)\
 Guangze Zheng, Shijie Lin, Haobo Zuo, Si Si, Ming-Shan Wang, Changhong Fu, and Jia Pan\
-[![arXiv](https://img.shields.io/badge/arXiv-2403.11186-b31b1b.svg)]() [![Hugging Face Models](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-blue)](https://huggingface.co/ZhengGuangze/LBM)
+<a href=""><img src="https://img.shields.io/badge/arXiv-2403.11186-b31b1b" alt="arXiv"></a>
+<a href="https://george-zhuang.github.io/lbm/"><img src="https://img.shields.io/badge/Project_Page-green" alt="Project Page"></a>
+<a href='https://huggingface.co/ZhengGuangze/LBM'><img src='https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Models-blue'></a>
 
 
 The features of LBM inlcude:
