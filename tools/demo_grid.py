@@ -20,7 +20,8 @@ def demo_args():
     parser.add_argument('--config_path', type=str, default='lbm/configs/demo.yaml')
     parser.add_argument('--video_path', type=str, default='data/demo.mp4')
     parser.add_argument('--checkpoint_path', type=str, default='checkpoints/lbm.pt')
-    parser.add_argument('--save_dir', type=str, default='tmp/output_pttrack')
+    parser.add_argument('--save_dir', type=str, default='tmp/demo_grid')
+    parser.add_argument('--grid_size', type=int, default=50)
     args = parser.parse_args()
     return args
 
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     model.load_state_dict(checkpoint['model'], strict=True)
 
     with torch.no_grad():
-        frames, video, query_points = load_video(config.video_path, click_query=True)
+        frames, video, query_points = load_video(config.video_path, click_query=False, grid_query=True, grid_size=args.grid_size)
         video = video.cuda()
         query_points = query_points.cuda()
         trajectories = query_points.unsqueeze(1) # n 1 2
@@ -46,7 +47,7 @@ if __name__ == "__main__":
         for t in range(1, video.shape[1]):
             video_frame = video[:, t] # 1 c h w
             coord, vis, rho, _ = model.online_forward(video_frame)
-            trajectories = torch.cat((trajectories, coord.unsqueeze(1)), dim=1)
+            trajectories = torch.cat((trajectories.to(coord.device), coord.unsqueeze(1)), dim=1)
             vis_frame, trajectories = draw_trajectory(frames[t], trajectories, vis, rho)
             cv2.imwrite(f"{config.save_dir}/{t:06d}.png", vis_frame)
             cv2.namedWindow("vis", cv2.WINDOW_NORMAL)

@@ -160,10 +160,15 @@ def draw_boxes(
 def draw_trajectory(
     rgb: np.ndarray,
     trajectories: Union[torch.Tensor, np.ndarray],
+    vis: Union[torch.Tensor, np.ndarray] = None,
+    rho: Union[torch.Tensor, np.ndarray] = None,
     max_len: int = 30,
     radius: int = RADIUS_DEFAULT,
     line_width: int = 4,
-) -> np.ndarray:
+    vis_threshold: float = 0.8,
+    rho_threshold: float = 0.1,
+    reset_masked_trajectories: bool = True,
+) -> Tuple[np.ndarray, Union[torch.Tensor, np.ndarray]]:
     """
     Draws multiple trajectories on an image with fading lines and final points.
 
@@ -176,18 +181,63 @@ def draw_trajectory(
         trajectories: Point coordinates for the trajectories (N, T, 2), where N
                       is the number of trajectories and T is the number of points
                       per trajectory. Points are ordered chronologically.
+        vis: Visibility scores for each trajectory (N,). If provided, trajectories
+             with visibility < vis_threshold will be filtered out.
+        rho: Confidence scores for each trajectory (N,). If provided, trajectories
+             with confidence > rho_threshold will be filtered out.
         max_len: Maximum number of points to draw from the end of each trajectory.
         radius: Radius of the final points.
         line_width: Width of the trajectory lines.
+        vis_threshold: Minimum visibility threshold for drawing trajectories.
+        rho_threshold: Maximum confidence threshold for drawing trajectories.
+        reset_masked_trajectories: If True, reset filtered trajectories to zeros
+                                  to prevent them from being drawn in future visualizations.
 
     Returns:
-        Image (np.ndarray) with the trajectories drawn.
+        Tuple containing:
+        - Image (np.ndarray) with the trajectories drawn.
+        - Trajectories array: modified with masked trajectories reset to zeros if reset_masked_trajectories=True
     """
     trajectories_np = _get_numpy(trajectories)
+    
+    # Create a copy for potential modification
+    trajectories_modified = trajectories_np.copy()
 
     # If no trajectories, return the original image
     if trajectories_np.shape[0] == 0:
-        return rgb.copy()
+        return rgb.copy(), trajectories
+
+    # Apply combined visibility and confidence mask
+    combined_mask = None
+    
+    if vis is not None:
+        vis_np = _get_numpy(vis)
+        vis_mask = vis_np >= vis_threshold
+        combined_mask = vis_mask
+    
+    if rho is not None:
+        rho_np = _get_numpy(rho)
+        rho_mask = rho_np <= rho_threshold
+        if combined_mask is not None:
+            # Both vis and rho are provided - use AND operation
+            combined_mask = combined_mask & rho_mask
+        else:
+            # Only rho is provided
+            combined_mask = rho_mask
+    
+    # Reset masked trajectories if requested
+    if reset_masked_trajectories and combined_mask is not None:
+        # Reset trajectories that don't pass the mask to zeros
+        masked_indices = ~combined_mask
+        trajectories_modified[masked_indices] = 0
+    
+    # Apply the combined mask if any mask was created
+    if combined_mask is not None:
+        trajectories_np = trajectories_np[combined_mask]
+        
+        # If no trajectories left after filtering, return the original image
+        if trajectories_np.shape[0] == 0:
+            return rgb.copy(), torch.from_numpy(trajectories_modified)
 
     # Convert background image to RGBA PIL Image for alpha compositing
     rgb_uint8 = rgb.copy().astype(np.uint8)
@@ -267,7 +317,9 @@ def draw_trajectory(
     img = Image.alpha_composite(img, overlay)
 
     # Convert back to RGB NumPy array
-    return np.array(img.convert('RGB'))
+    result_image = np.array(img.convert('RGB'))
+    
+    return result_image, torch.from_numpy(trajectories_modified)
 
 
 def save_visualization(frame, pred_track_instances, coord, vis, save_path, model):

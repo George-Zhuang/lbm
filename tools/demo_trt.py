@@ -111,7 +111,7 @@ if __name__ == "__main__":
             mem_mask = output['mem_mask_new'][:N*12].reshape(1, N, 12)
             last_pos = output['last_pos_new'][:N*2].reshape(N, 2)
             trajectories = np.concatenate((trajectories, coord_pred.reshape(N, 1, 2)), axis=1)
-            vis_frame = draw_trajectory(frames[t], trajectories, radius=3, line_width=2)
+            vis_frame, trajectories = draw_trajectory(frames[t], trajectories, radius=3, line_width=2)
             cv2.imwrite(f"{args.save_dir}/{t:06d}.png", vis_frame)
             cv2.namedWindow("vis", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("vis", 512, 384)

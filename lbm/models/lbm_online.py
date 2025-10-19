@@ -150,11 +150,12 @@ class LBM_online(LBM):
         ref_tracks = out_t[-1]['reference_points'].squeeze(-2, -4) # n 2
         coord_pred = ref_tracks + offset[0] # n 2
         vis_pred = F.sigmoid(vis)[0] > self.visibility_treshold
+        rho_pred = F.sigmoid(rho)[0]
 
         coord_pred[:, 1] = (coord_pred[:, 1] / self.size[0]) * H
         coord_pred[:, 0] = (coord_pred[:, 0] / self.size[1]) * W
 
-        return coord_pred, vis_pred, f_t
+        return coord_pred, vis_pred, rho_pred, f_t
 
     def online_forward_obj(self, frame, bboxes, scores, labels):
         '''
@@ -169,7 +170,7 @@ class LBM_online(LBM):
         coords, visibility, frame_feat, pred_track_instances = None, None, None, None
 
         if self.N > 0:
-            coords, visibility, frame_feat = self.online_forward(frame)
+            coords, visibility, rho, frame_feat = self.online_forward(frame)
 
         if bboxes is not None:
             bboxes = torch.as_tensor(bboxes, device=self.device, dtype=torch.float32)

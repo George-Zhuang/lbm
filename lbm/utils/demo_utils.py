@@ -5,7 +5,7 @@ import glob
 import numpy as np
 
 
-def load_video(video_path, click_query=True):
+def load_video(video_path, click_query=False, grid_query=False, grid_size=10):
     frames = []
     first_frame = None
     query_points = []
@@ -92,6 +92,21 @@ def load_video(video_path, click_query=True):
 
         cv2.destroyWindow("First Frame - Click to add points, Press 'q' to finish")
     # --- End Query Point Selection ---
+
+    # --- Grid Query Point Selection ---
+    if grid_query and first_frame is not None:
+        height, width = first_frame.shape[:2]
+        
+        step_x = width / (grid_size + 1)
+        step_y = height / (grid_size + 1)
+        
+        for i in range(1, grid_size + 1):
+            for j in range(1, grid_size + 1):
+                x = int(i * step_x)
+                y = int(j * step_y)
+                query_points.append((x, y))
+        
+        print(f"Generated {len(query_points)} grid query points ({grid_size}x{grid_size})")
 
     # Convert query_points to a tensor.
     query_points_tensor = torch.tensor(query_points, dtype=torch.float32) if query_points else torch.zeros((0, 2), dtype=torch.float32)

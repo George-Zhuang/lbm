@@ -59,7 +59,7 @@ if __name__ == "__main__":
         print("Starting warmup...")
         with torch.no_grad():
             for _ in range(args.warmup):
-                _, _, _ = model.online_forward(test_frame)
+                _, _, _, _ = model.online_forward(test_frame)
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         
@@ -69,7 +69,7 @@ if __name__ == "__main__":
         with torch.no_grad():
             for i in range(args.iterations):
                 start_time = time.time()
-                _, _, _ = model.online_forward(test_frame)
+                _, _, _, _ = model.online_forward(test_frame)
                 if torch.cuda.is_available():
                     torch.cuda.synchronize()
                 end_time = time.time()

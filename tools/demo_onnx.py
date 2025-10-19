@@ -86,7 +86,7 @@ if __name__ == "__main__":
                         }
                     )
             trajectories = torch.cat((trajectories, coord_pred.unsqueeze(1)), dim=1)
-            vis_frame = draw_trajectory(frames[t], trajectories)
+            vis_frame, trajectories = draw_trajectory(frames[t], trajectories)
             cv2.imwrite(f"{args.save_dir}/{t:06d}.png", vis_frame)
             cv2.namedWindow("vis", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("vis", 960, 540)
