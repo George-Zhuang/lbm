@@ -52,7 +52,7 @@ DISTRIBUTED_ARGS="
 "
 
 torchrun $DISTRIBUTED_ARGS main.py \
-    --config_path "lbm/configs/default.yaml" \
+    --config_path "lbm/configs/lbm.yaml" \
     --movi_f_root "data/kubric_lbm" \ # path to your MOVi-F
     --tapvid_root "data/tapvid_davis/tapvid_davis.pkl" \ # path to your DAVIS
     --eval_dataset "davis" \
@@ -67,7 +67,7 @@ Please note that the following default settings:
 - ```--N``` is set 256 for each sequence, where 256 point trajectories are sampled.
 - set ```--checkpoint_path``` to ```path/to/your/checkpoint``` if you want to resume training from a checkpoint.
 
-(Optional) Find default settings in  ```lbm/configs/default.yaml```. Change the settings if you want.
+(Optional) Find default settings in  ```lbm/configs/lbm.yaml```. Change the settings if you want.
 
 
 ## ⚡ Efficient training

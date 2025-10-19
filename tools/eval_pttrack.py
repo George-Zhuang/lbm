@@ -7,13 +7,13 @@ import time
 
 from lbm.models import LBM
 from lbm.utils.train_utils import fix_random_seeds, get_dataloaders
-from lbm.utils.eval_utils import load_config, Evaluator, compute_tapvid_metrics, compute_dynamicreplica_metrics
+from lbm.utils.eval_utils import load_config, Evaluator, compute_tapvid_metrics
 
 
 def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description='Evaluate an point tracking model.')
-    parser.add_argument('--config_path', type=str, default='lbm/configs/default.yaml', help='Path to the configuration file.')
+    parser.add_argument('--config_path', type=str, default='lbm/configs/lbm.yaml', help='Path to the configuration file.')
     parser.add_argument('--checkpoint_path', type=str, default='checkpoints/lbm.pt', help='Path to the checkpoint file.')
     parser.add_argument('--eval_dataset', type=str, default='davis', help='Evaluation dataset.', choices=['davis', 'kinetics', 'robotap', 'dynamicreplica', 'pointodyssey'])
     parser.add_argument('--tapvid_root', type=str, default='data/tapvid_davis/tapvid_davis.pkl', help='Path to the tapvid root file.')

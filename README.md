@@ -4,7 +4,7 @@ Like **tracking anything**? Want **efficiency**? Try LBM!
 <img src="assets/demo.gif" width="640">
 </div>
 
-[Lattice Boltzmann Model for Learning Real-World Pixel Dynamicity](https://george-zhuang.github.io/lbm/)\
+[Lattice Boltzmann Model for Learning Real-World Pixel Dynamicity (NeurIPS 2025)](https://george-zhuang.github.io/lbm/)\
 Guangze Zheng, Shijie Lin, Haobo Zuo, Si Si, Ming-Shan Wang, Changhong Fu, and Jia Pan\
 <a href=""><img src="https://img.shields.io/badge/arXiv-2403.11186-b31b1b" alt="arXiv"></a>
 <a href="https://george-zhuang.github.io/lbm/"><img src="https://img.shields.io/badge/Project_Page-green" alt="Project Page"></a>
@@ -18,6 +18,7 @@ The features of LBM inlcude:
 - [x] **robust** against **detection failure** for 2d object tracking.
 
 ### 📌 News
+- ```2025.09``` LBM is accpected by **NeurIPS 2025**.
 - ```2025.06``` LBM TensorRT is available. LBM can also track 3D points now by lifting.
 - ```2025.04``` LBM is proposed for **online** and **real-time** 2D point tracking and object tracking in dynamic scenes, with only 18M parameter and achieve SOTA performance.
 

@@ -14,7 +14,7 @@ from lbm.utils.eval_utils import load_config, Evaluator, compute_tapvid_metrics
 def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description='Evaluate an point tracking model with multi-process support.')
-    parser.add_argument('--config_path', type=str, default='lbm/configs/default.yaml', help='Path to the configuration file.')
+    parser.add_argument('--config_path', type=str, default='lbm/configs/lbm.yaml', help='Path to the configuration file.')
     parser.add_argument('--checkpoint_path', type=str, default='checkpoints/lbm.pt', help='Path to the checkpoint file.')
     parser.add_argument('--eval_dataset', type=str, default='kinetics', help='Evaluation dataset.', choices=['davis', 'kinetics', 'robotap'])
     parser.add_argument('--tapvid_root', type=str, default='data/tapvid_kinetics', help='Path to the tapvid root file.')
